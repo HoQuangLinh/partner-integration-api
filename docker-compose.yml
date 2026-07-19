@@ -1,0 +1,58 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      DataProtection__ApplicationName: PartnerIntegration.Api
+      DataProtection__KeysPath: /app/data-protection-keys
+      PartnerApiKeys__Credentials__0__PartnerId: ${PARTNER_ID:?Set PARTNER_ID}
+      PartnerApiKeys__Credentials__0__ApiKey: ${PARTNER_API_KEY:?Set PARTNER_API_KEY}
+      PartnerVerification__BaseUrl: http://api:8080/
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__UserName: ${RABBITMQ_USER:?Set RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - data-protection-keys:/app/data-protection-keys
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
+
+  tests:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    environment:
+      PARTNER_ID: ${PARTNER_ID:?Set PARTNER_ID}
+      PARTNER_API_KEY: ${PARTNER_API_KEY:?Set PARTNER_API_KEY}
+      PartnerApiKeys__Credentials__0__PartnerId: ${PARTNER_ID:?Set PARTNER_ID}
+      PartnerApiKeys__Credentials__0__ApiKey: ${PARTNER_API_KEY:?Set PARTNER_API_KEY}
+      RabbitMq__UserName: ${RABBITMQ_USER:?Set RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}
+      MockPartnerVerification__TimeoutProbability: "0"
+    volumes:
+      - ./TestResults:/source/TestResults
+
+volumes:
+  data-protection-keys:
+  rabbitmq-data:
